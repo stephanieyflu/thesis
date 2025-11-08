@@ -1,5 +1,19 @@
 # thesis
 
+### Getting Started
+
+Create a virtual environment
+
+    python -m venv .venv
+
+Activate your virtual environment
+
+    source .venv/Scripts/activate
+
+Install requirements
+
+    pip install -r requirements.txt
+
 ### Folder Structure
 
 ```
