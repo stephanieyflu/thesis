@@ -1,5 +1,6 @@
 # thesis
 
+```
 thesis/
 │
 ├── main.py                     # Entry point – runs experiments & compares policies
@@ -9,3 +10,4 @@ thesis/
 ├── events.py                   # Cardiac event process & policy handling
 ├── policies.py                 # Defines static and dynamic alert policies
 └── analysis.py                 # Aggregation, visualization, and summary
+```
