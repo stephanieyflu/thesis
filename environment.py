@@ -1,5 +1,5 @@
 import simpy
-from events import cardiac_event
+from event import cardiac_event
 from config import SIM_DAYS, NUM_RESPONDERS
 
 def run_environment(env_name, config, policy):
