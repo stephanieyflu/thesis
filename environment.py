@@ -8,5 +8,5 @@ def run_environment(env_name, config, policy):
     results = {"response_times": [], "successes": []}
 
     env.process(cardiac_event(env, responders, env_name, config, policy, results))
-    env.run(until=SIM_DAYS * 24 * 60)  # minutes in a year
+    env.run(until=SIM_DAYS * 24 * 60) # minutes in a year
     return results

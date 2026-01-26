@@ -1,8 +1,5 @@
 import numpy as np
 
-# ------------------------
-# Generic Policies
-# ------------------------
 def static_policy(responders, num_alerts, current_time):
     """Alert a fixed number of available responders randomly"""
     available = [r for r in responders if r.is_available(current_time)]
@@ -25,12 +22,9 @@ def dynamic_policy(responders, target_accepts, current_time):
             break
     return alerted
 
-# ------------------------
-# System-specific Policies
-# ------------------------
 def system_policy(responders, current_time, max_responders=20, radius=None, active_hours=(0,24)):
     """Generic system policy supporting radius and active hours"""
-    hour = (current_time // 60) % 24  # convert minutes to hour
+    hour = (current_time // 60) % 24 # convert minutes to hour
     if hour < active_hours[0] or hour > active_hours[1]:
         return []
 
@@ -43,9 +37,6 @@ def system_policy(responders, current_time, max_responders=20, radius=None, acti
 
     return list(np.random.choice(available, min(max_responders, len(available)), replace=False))
 
-# ------------------------
-# Dictionary of 12 CFR systems
-# ------------------------
 CFR_POLICIES = {
     "Moment": lambda r, t: system_policy(r, t, max_responders=50, radius=None, active_hours=(0,24)),
     "AED-Alert": lambda r, t: system_policy(r, t, max_responders=20, radius=10),

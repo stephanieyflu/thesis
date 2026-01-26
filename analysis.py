@@ -5,7 +5,6 @@ import seaborn as sns
 sns.set(style="whitegrid")
 
 def summarize_results(df):
-    """Compute summary statistics for first arrival time and success rate."""
     summary = {
         'avg_first_arrival': df['first_arrival_time'].mean(),
         'median_first_arrival': df['first_arrival_time'].median(),
@@ -48,29 +47,17 @@ def plot_alerts_distribution(df, ax=None, label=None):
     ax.set_title("Number of Responders Alerted per Event")
 
 def dashboard_of_dashboards(dfs_dict, title=None):
-    """
-    Multi-panel dashboard comparing multiple policies.
-    Legends are moved outside to the right.
-    Increased vertical spacing between subplots.
-    
-    dfs_dict: dict of DataFrames, keys are policy names
-    title: optional figure title
-    """
-    # Create figure with extra vertical space between subplots
     fig, axes = plt.subplots(3, 1, figsize=(14, 16), constrained_layout=False)
-    plt.subplots_adjust(hspace=0.45, right=0.8)  # add vertical spacing and leave room for legend
+    plt.subplots_adjust(hspace=0.45, right=0.8)
 
-    # First Arrival KDE
     for key, df in dfs_dict.items():
         plot_first_arrival_distribution(df, ax=axes[0], label=key)
     axes[0].legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
-    # Success Rate vs Threshold
     for key, df in dfs_dict.items():
         plot_success_rate_over_threshold(df, ax=axes[1], label=key)
     axes[1].legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
-    # Alerts Histogram
     for key, df in dfs_dict.items():
         plot_alerts_distribution(df, ax=axes[2], label=key)
     axes[2].legend(loc='center left', bbox_to_anchor=(1, 0.5))

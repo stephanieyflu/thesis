@@ -1,7 +1,6 @@
 SIM_DAYS = 365
 SIM_RUNS = 50
 
-# Environments
 ENVIRONMENTS = {
     'urban': {
         'lambda_event': 10/24, # events per hour
@@ -19,7 +18,6 @@ ENVIRONMENTS = {
     }
 }
 
-# Responders
 NUM_RESPONDERS = 50
 ACCEPTANCE_PROB = 0.5
 RESPONSE_DELAY_MEAN = 2 # minutes
@@ -27,12 +25,9 @@ RESPONSE_DELAY_STD = 1
 REST_MEAN = 30 # minutes
 REST_STD = 10
 
-# Ambulance
 AMBULANCE_MEAN = 8 # minutes
 AMBULANCE_STD = 2
 
-# Policies
 POLICIES = ['static', 'dynamic'] # examples
 
-# Success criterion
 T_CRIT = 5 # minutes
