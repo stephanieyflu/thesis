@@ -2,10 +2,20 @@ import numpy as np
 from config import RESPONSE_DELAY_MEAN, RESPONSE_DELAY_STD, REST_MEAN, REST_STD
 
 class Responder:
-    def __init__(self, id, acceptance_prob):
+    def __init__(
+            self, 
+            id, 
+            acceptance_prob,
+            has_cpr_training=False,
+            has_aed_access=False,
+            is_professional=False
+        ):
         self.id = id
         self.acceptance_prob = acceptance_prob
         self.busy_until = 0 # minutes since simulation start
+        self.has_cpr_training = has_cpr_training
+        self.has_aed_access = has_aed_access
+        self.is_professional = is_professional
 
     def is_available(self, current_time):
         return current_time >= self.busy_until

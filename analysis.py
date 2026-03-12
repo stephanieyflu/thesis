@@ -1,18 +1,65 @@
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
 sns.set(style="whitegrid")
 
+
+def _mean_ci(series):
+    """
+    Compute mean and 95% confidence interval (normal approximation).
+    """
+    m = series.mean()
+    n = len(series)
+    if n <= 1:
+        return m, m, m
+    se = series.std(ddof=1) / np.sqrt(n)
+    half = 1.96 * se
+    return m, m - half, m + half
+
+
 def summarize_results(df):
-    summary = {
-        'avg_first_arrival': df['first_arrival_time'].mean(),
-        'median_first_arrival': df['first_arrival_time'].median(),
-        'std_first_arrival': df['first_arrival_time'].std(),
-        'success_rate': df['success'].mean(),
-        'avg_num_alerts': df['num_alerted'].mean(),
-        'max_num_alerts': df['num_alerted'].max()
-    }
+    """
+    Summarize performance metrics.
+
+    If a 'run_id' column is present, compute means and 95% CIs across runs.
+    Otherwise, report simple event-level means.
+    """
+    if "run_id" in df.columns:
+        per_run = (
+            df.groupby("run_id")
+            .agg(
+                first_arrival_mean=("first_arrival_time", "mean"),
+                success_rate=("success", "mean"),
+                alerts_mean=("num_alerted", "mean"),
+            )
+            .reset_index()
+        )
+
+        fa_mean, fa_lo, fa_hi = _mean_ci(per_run["first_arrival_mean"])
+        sr_mean, sr_lo, sr_hi = _mean_ci(per_run["success_rate"])
+        al_mean, al_lo, al_hi = _mean_ci(per_run["alerts_mean"])
+
+        summary = {
+            "avg_first_arrival": fa_mean,
+            "avg_first_arrival_ci": (fa_lo, fa_hi),
+            "success_rate": sr_mean,
+            "success_rate_ci": (sr_lo, sr_hi),
+            "avg_num_alerts": al_mean,
+            "avg_num_alerts_ci": (al_lo, al_hi),
+            "max_num_alerts": df["num_alerted"].max(),
+        }
+    else:
+        summary = {
+            "avg_first_arrival": df["first_arrival_time"].mean(),
+            "median_first_arrival": df["first_arrival_time"].median(),
+            "std_first_arrival": df["first_arrival_time"].std(),
+            "success_rate": df["success"].mean(),
+            "avg_num_alerts": df["num_alerted"].mean(),
+            "max_num_alerts": df["num_alerted"].max(),
+        }
+
     return summary
 
 def plot_first_arrival_distribution(df, ax=None, label=None):

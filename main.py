@@ -4,25 +4,22 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import os
 from datetime import datetime
-from responder import Responder
 from policies import CFR_POLICIES
 from simulation import run_simulation_batch
 from analysis import summarize_results, plot_first_arrival_distribution, plot_alerts_distribution, plot_success_rate_over_threshold, dashboard_of_dashboards
-from config import SIM_DAYS, NUM_RESPONDERS
+from config import SIM_DAYS, NUM_RESPONDERS, SIM_RUNS, ENVIRONMENTS, AMBULANCE_MEAN, AMBULANCE_STD
 
 # sns.set(style="whitegrid")
 
+# for LaTeX-style plots
 plt.rcParams.update({
-    # --- FONT SETUP ---
     "text.usetex": False,                 
     "font.family": "serif",
     "font.serif": ["DejaVu Serif"],       
     "mathtext.fontset": "cm",             
 
-    # --- SIZE AND DPI ---
     "figure.dpi": 300,
 
-    # --- AXES & GRID ---
     "axes.linewidth": 1.0,
     "axes.grid": True,
     "grid.color": "#cccccc",
@@ -30,29 +27,153 @@ plt.rcParams.update({
     "grid.alpha": 0.6,
     "grid.linestyle": "-",
 
-    # --- TICKS ---
     "xtick.major.size": 6,
     "ytick.major.size": 6,
     "xtick.direction": "inout",
     "ytick.direction": "inout",
 
-    # --- LINES ---
     "lines.linewidth": 2.0,
     "lines.markersize": 6,
 
-    # --- BACKGROUND ---
     "axes.facecolor": "white",
 })
 
 colors = ["#4C72B0", "#DD8452", "#55A868", "#C44E52",
           "#8172B2", "#937860", "#DA8BC3"]
 
-def create_responders(num_responders=NUM_RESPONDERS, acceptance_prob_range=(0.5, 0.9)):
-    responders = []
-    for i in range(num_responders):
-        prob = np.random.uniform(*acceptance_prob_range)
-        responders.append(Responder(id=i, acceptance_prob=prob))
-    return responders
+
+def run_experiment_grid(
+    environments=None,
+    densities=None,
+    ems_scenarios=None,
+    speed_scenarios=None,
+    acceptance_scenarios=None,
+    num_events_per_day=2,
+    sim_days=SIM_DAYS,
+    num_runs=SIM_RUNS,
+    results_folder="results",
+):
+    """
+    Run a policy x environment x responder-density x Monte Carlo grid and return a single combined DataFrame.
+
+    - environments: list like ['urban', 'rural']
+    - densities: dict label -> num_responders, e.g. {'low': 10, 'medium': 30, 'high': 60}
+    - ems_scenarios: dict label -> {'mean': ..., 'std': ...}
+    - speed_scenarios: dict label -> {'factor': ...} scaling speed_mean/speed_std
+    - acceptance_scenarios: dict label -> per-type acceptance ranges
+    - num_runs: Monte Carlo runs per scenario cell
+    """
+    if environments is None:
+        environments = ["urban", "rural"]
+
+    if densities is None:
+        densities = {
+            "low": 10,
+            "medium": NUM_RESPONDERS,
+            "high": 2 * NUM_RESPONDERS,
+        }
+
+    if ems_scenarios is None:
+        ems_scenarios = {
+            "baseline": {"mean": AMBULANCE_MEAN, "std": AMBULANCE_STD},
+        }
+
+    if speed_scenarios is None:
+        speed_scenarios = {
+            "baseline": {"factor": 1.0},
+        }
+
+    if acceptance_scenarios is None:
+        acceptance_scenarios = {
+            "baseline": {
+                "none": (0.05, 0.15),
+                "cpr": (0.10, 0.30),
+                "professional": (0.30, 0.50),
+            },
+        }
+
+    all_policies = {**CFR_POLICIES}
+    all_results = []
+
+    # Precompute index maps for deterministic seeding
+    env_index = {name: idx for idx, name in enumerate(environments)}
+    density_index = {label: idx for idx, label in enumerate(densities.keys())}
+    ems_index = {label: idx for idx, label in enumerate(ems_scenarios.keys())}
+    speed_index = {label: idx for idx, label in enumerate(speed_scenarios.keys())}
+    acc_index = {label: idx for idx, label in enumerate(acceptance_scenarios.keys())}
+    base_seed = 123456
+
+    for env_name in environments:
+        base_env = ENVIRONMENTS[env_name]
+        for density_label, n_resp in densities.items():
+            for ems_label, ems_cfg in ems_scenarios.items():
+                for speed_label, speed_cfg in speed_scenarios.items():
+                    for acc_label, acc_cfg in acceptance_scenarios.items():
+                        # Build environment overrides for this scenario (e.g., faster/slower travel).
+                        factor = speed_cfg.get("factor", 1.0)
+                        env_overrides = {
+                            "speed_mean": base_env["speed_mean"] * factor,
+                            "speed_std": base_env["speed_std"] * factor,
+                        }
+                        amb_mean = ems_cfg["mean"]
+                        amb_std = ems_cfg["std"]
+
+                        for run_id in range(1, num_runs + 1):
+                            # Deterministic seed per scenario cell and run
+                            seed = (
+                                base_seed
+                                + 10_000 * env_index[env_name]
+                                + 1_000 * density_index[density_label]
+                                + 100 * ems_index[ems_label]
+                                + 10 * speed_index[speed_label]
+                                + acc_index[acc_label]
+                                + run_id
+                            )
+                            print(
+                                f"\n=== Env: {env_name} | Density: {density_label} ({n_resp}) | "
+                                f"EMS: {ems_label} (μ={amb_mean}, σ={amb_std}) | "
+                                f"Speed: {speed_label} (x{factor}) | "
+                                f"Accept: {acc_label} | Run: {run_id}/{num_runs} | Seed: {seed} ==="
+                            )
+                            dfs = run_simulation_batch(
+                                all_policies.keys(),
+                                env_name=env_name,
+                                sim_days=sim_days,
+                                num_responders=n_resp,
+                                num_events_per_day=num_events_per_day,
+                                env_overrides=env_overrides,
+                                ambulance_mean=amb_mean,
+                                ambulance_std=amb_std,
+                                acceptance_cfg=acc_cfg,
+                                seed=seed,
+                            )
+
+                            for policy_name, df in dfs.items():
+                                df = df.copy()
+                                df["environment"] = env_name
+                                df["policy"] = policy_name
+                                df["density_label"] = density_label
+                                df["num_responders"] = n_resp
+                                df["ems_label"] = ems_label
+                                df["ambulance_mean"] = amb_mean
+                                df["ambulance_std"] = amb_std
+                                df["speed_label"] = speed_label
+                                df["speed_mean"] = env_overrides["speed_mean"]
+                                df["speed_std"] = env_overrides["speed_std"]
+                                df["acceptance_label"] = acc_label
+                                df["run_id"] = run_id
+                                df["seed"] = seed
+                                all_results.append(df)
+
+    combined_df = pd.concat(all_results, ignore_index=True)
+
+    os.makedirs(results_folder, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    combined_filename = os.path.join(results_folder, f"combined_results_grid_{timestamp}.csv")
+    combined_df.to_csv(combined_filename, index=False)
+    print(f"\nSaved grid results to {combined_filename}")
+
+    return combined_df
 
 def dashboard_of_dashboards_demo(combined_df, title="", save=True, results_folder="results"):
     environments = combined_df['environment'].unique()
@@ -103,44 +224,20 @@ def dashboard_of_dashboards_demo(combined_df, title="", save=True, results_folde
     return fig
 
 def main():
-    responders = create_responders(NUM_RESPONDERS)
+    # default grid:
+    # - environments: urban vs rural
+    # - responder density: low / medium / high
+    # - Monte Carlo repetitions: SIM_RUNS from config.py
+    combined_df = run_experiment_grid()
 
-    environments = ['urban', 'rural']
-    all_policies = {**CFR_POLICIES}
-
-    combined_results = []
-
-    for env_name in environments:
-        print(f"\n=== Running environment: {env_name} ===")
-        dfs = run_simulation_batch(all_policies.keys(), env_name=env_name,
-                                   sim_days=SIM_DAYS,
-                                   num_responders=NUM_RESPONDERS,
-                                   num_events_per_day=2)
-
-        for policy_name, df in dfs.items():
-            df['environment'] = env_name
-            df['policy'] = policy_name
-            combined_results.append(df)
-
-    combined_df = pd.concat(combined_results, ignore_index=True)
-
-    for (env, policy), group in combined_df.groupby(['environment', 'policy']):
-        print(f"\n--- {env} | {policy} ---")
+    # Print summaries by environment, density level, EMS, speed, acceptance scenario, and policy
+    for (env, density, ems_label, speed_label, acc_label, policy), group in combined_df.groupby(
+        ["environment", "density_label", "ems_label", "speed_label", "acceptance_label", "policy"]
+    ):
+        print(f"\n--- {env} | {density} | EMS={ems_label} | Speed={speed_label} | Accept={acc_label} | {policy} ---")
         print(summarize_results(group))
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    results_folder = "results"
-    os.makedirs(results_folder, exist_ok=True)
-    combined_filename = os.path.join(results_folder, f"combined_results_{timestamp}.csv")
-    combined_df.to_csv(combined_filename, index=False)
-    print(f"\nSaved all results to {combined_filename}")
-
-    # for env_name, group in combined_df.groupby('environment'):
-    #     dfs_env = {policy: group[group['policy']==policy].drop(columns=['environment', 'policy'])
-    #                for policy in group['policy'].unique()}
-    #     print(f"\n=== Dashboard for {env_name} environment ===")
-    #     dashboard_of_dashboards(dfs_env, title=f"{env_name.capitalize()} Environment")
-
+    # example dashboard over all scenario
     dashboard_of_dashboards_demo(combined_df)
 
 if __name__ == "__main__":

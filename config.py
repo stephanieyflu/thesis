@@ -1,5 +1,5 @@
 SIM_DAYS = 365
-SIM_RUNS = 50
+SIM_RUNS = 100
 
 ENVIRONMENTS = {
     'urban': {
@@ -18,15 +18,28 @@ ENVIRONMENTS = {
     }
 }
 
+RESPONDER_TYPE_MIX = {
+    "urban": {
+        "none": 0.2,
+        "cpr": 0.5,
+        "professional": 0.3,
+    },
+    "rural": {
+        "none": 0.4,
+        "cpr": 0.5,
+        "professional": 0.1,
+    },
+}
+
 NUM_RESPONDERS = 30
-ACCEPTANCE_PROB = 0.4               # 40% of alerts accepted
-RESPONSE_DELAY_MEAN = 3             # minutes; time to start moving
+ACCEPTANCE_PROB = 0.4
+RESPONSE_DELAY_MEAN = 3
 RESPONSE_DELAY_STD = 2
 
-REST_MEAN = 60                      # minutes; resting between alerts
+REST_MEAN = 60
 REST_STD = 30
 
-AMBULANCE_MEAN = 8                  # not applicable; responders are on foot
+AMBULANCE_MEAN = 8
 AMBULANCE_STD = 2
 
 POLICIES = ['static', 'dynamic']
