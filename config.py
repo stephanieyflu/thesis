@@ -20,14 +20,14 @@ ENVIRONMENTS = {
 
 RESPONDER_TYPE_MIX = {
     "urban": {
-        "none": 0.2,
-        "cpr": 0.5,
-        "professional": 0.3,
+        "none": 0.0,
+        "cpr": 1.0,
+        "professional": 0.0,
     },
     "rural": {
-        "none": 0.4,
-        "cpr": 0.5,
-        "professional": 0.1,
+        "none": 0.0,
+        "cpr": 1.0,
+        "professional": 0.0,
     },
 }
 
