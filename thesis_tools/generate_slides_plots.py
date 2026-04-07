@@ -27,8 +27,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from cycler import cycler
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
+from matplotlib.ticker import MaxNLocator
 from scipy import stats
 
 from src.cfr_sim.utils import apply_thesis_retroactive_time_adjustment
@@ -141,6 +143,105 @@ POLICY_COLOR_ORDER = [
     "EMS only",
     "Random",
 ]
+
+POLICY_DISPLAY = {
+    "PulsePoint_and_myResponder": "PulsePoint/myResponder",
+    "HeartRunner": "Heartrunner",
+}
+
+PAPER_POLICY_COLORS = {
+    "Mobile Lifesaver": "#1f3b5c",
+    "GoodSAM": "#355c7d",
+    "Hartslagnu": "#4f6d8a",
+    "Momentum": "#6b7f99",
+    "HeartRunner": "#7d8ea3",
+    "PulsePoint_and_myResponder": "#95a3b3",
+    "EMS only": "#2b2b2b",
+    "Random": "#b5b5b5",
+}
+
+PAPER_FALLBACK_COLORS = [
+    "#1f3b5c",
+    "#355c7d",
+    "#4f6d8a",
+    "#6b7f99",
+    "#7d8ea3",
+    "#95a3b3",
+    "#2b2b2b",
+    "#707070",
+]
+
+POLICY_LINESTYLES = {
+    "Mobile Lifesaver": "-",
+    "GoodSAM": "--",
+    "Hartslagnu": "-.",
+    "Momentum": ":",
+    "HeartRunner": (0, (3, 1, 1, 1)),
+    "PulsePoint_and_myResponder": (0, (5, 2)),
+    "EMS only": "-",
+}
+
+
+def _pretty_policy(label: str) -> str:
+    return POLICY_DISPLAY.get(label, label.replace("_", " "))
+
+
+def _apply_policy_linestyles(ax, policy_order: list[str]) -> None:
+    style_map = {p: POLICY_LINESTYLES.get(p, "-") for p in policy_order}
+    for ln in ax.lines:
+        lbl = ln.get_label()
+        if lbl in style_map:
+            ln.set_linestyle(style_map[lbl])
+
+
+def set_paper_style() -> None:
+    sns.set_theme(style="white", context="paper")
+    plt.rcParams.update(
+        {
+            "text.usetex": False,
+            "font.family": "sans-serif",
+            "font.sans-serif": ["Roboto", "DejaVu Sans", "Arial", "Helvetica", "sans-serif"],
+            "mathtext.fontset": "dejavusans",
+            "figure.dpi": 160,
+            "savefig.dpi": 600,
+            "savefig.bbox": "tight",
+            "savefig.pad_inches": 0.03,
+            "figure.facecolor": "white",
+            "axes.facecolor": "white",
+            "axes.edgecolor": "black",
+            "axes.linewidth": 0.8,
+            "axes.grid": True,
+            "axes.axisbelow": True,
+            "axes.titlesize": 12,
+            "axes.titleweight": "regular",
+            "axes.labelsize": 12,
+            "axes.labelweight": "regular",
+            "axes.prop_cycle": cycler(color=PAPER_FALLBACK_COLORS),
+            "grid.color": "#d9d9d9",
+            "grid.linewidth": 0.5,
+            "grid.linestyle": "-",
+            "grid.alpha": 0.65,
+            "axes.spines.top": False,
+            "axes.spines.right": False,
+            "xtick.labelsize": 10.5,
+            "ytick.labelsize": 10.5,
+            "xtick.major.width": 0.7,
+            "ytick.major.width": 0.7,
+            "xtick.major.size": 3.5,
+            "ytick.major.size": 3.5,
+            "lines.linewidth": 1.6,
+            "lines.markersize": 4.5,
+            "patch.linewidth": 0.6,
+            "legend.frameon": True,
+            "legend.fancybox": False,
+            "legend.framealpha": 1.0,
+            "legend.edgecolor": "#bdbdbd",
+            "legend.facecolor": "white",
+            "legend.fontsize": 9.5,
+            "legend.title_fontsize": 10.0,
+            "hatch.linewidth": 0.5,
+        }
+    )
 
 
 def resolve_ems_benchmark(
@@ -457,14 +558,16 @@ def _policy_order(df: pd.DataFrame) -> list[str]:
     return df.groupby("policy")["first_arrival_time"].mean().sort_values().index.tolist()
 
 
-def _policy_palette(policy_order: list[str]) -> dict[str, tuple]:
-    base_colors = sns.color_palette("colorblind", n_colors=len(POLICY_COLOR_ORDER))
-    palette = {p: c for p, c in zip(POLICY_COLOR_ORDER, base_colors)}
-    missing = [p for p in policy_order if p not in palette]
-    if missing:
-        extra = sns.color_palette("husl", n_colors=len(missing))
-        palette.update({p: c for p, c in zip(missing, extra)})
-    return {p: palette[p] for p in policy_order}
+def _policy_palette(policy_order: list[str]) -> dict[str, str]:
+    palette: dict[str, str] = {}
+    fallback_idx = 0
+    for p in policy_order:
+        if p in PAPER_POLICY_COLORS:
+            palette[p] = PAPER_POLICY_COLORS[p]
+        else:
+            palette[p] = PAPER_FALLBACK_COLORS[fallback_idx % len(PAPER_FALLBACK_COLORS)]
+            fallback_idx += 1
+    return palette
 
 
 def _tight_limits(values: pd.Series, pad_frac: float = 0.08, min_pad: float = 0.02):
@@ -514,7 +617,8 @@ def _place_legend_outside(ax, title: str | None = None):
     handles, labels = ax.get_legend_handles_labels()
     if not handles:
         return
-    ax.legend(
+    labels = [_pretty_policy(str(lbl)) for lbl in labels]
+    leg = ax.legend(
         handles,
         labels,
         title=title,
@@ -525,6 +629,61 @@ def _place_legend_outside(ax, title: str | None = None):
         fontsize=9,
         title_fontsize=10,
     )
+    leg.get_frame().set_linewidth(0.7)
+    leg.get_frame().set_edgecolor("#bdbdbd")
+
+
+def style_axes(ax, *, integer_y: bool = False) -> None:
+    ax.set_facecolor("white")
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_linewidth(0.8)
+    ax.spines["bottom"].set_linewidth(0.8)
+    ax.grid(True, axis="y", color="#d9d9d9", linewidth=0.5, alpha=0.65)
+    ax.grid(False, axis="x")
+    if integer_y:
+        ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.tick_params(axis="both", which="major", length=3.5, width=0.7)
+
+
+def finalize_axis_labels(ax, rotate_x: int | None = None) -> None:
+    if rotate_x is not None:
+        for tick in ax.get_xticklabels():
+            tick.set_rotation(rotate_x)
+            tick.set_ha("right")
+    style_axes(ax)
+
+
+def paper_heatmap(
+    data,
+    ax,
+    *,
+    vmin=None,
+    vmax=None,
+    cbar=True,
+    cbar_ax=None,
+    cbar_kws=None,
+    annot=True,
+    fmt=".2f",
+):
+    hm = sns.heatmap(
+        data,
+        ax=ax,
+        cmap="Blues",
+        vmin=vmin,
+        vmax=vmax,
+        annot=annot,
+        fmt=fmt,
+        linewidths=0.35,
+        linecolor="white",
+        cbar=cbar,
+        cbar_ax=cbar_ax,
+        cbar_kws=cbar_kws,
+        square=False,
+        annot_kws={"fontsize": 8},
+    )
+    ax.set_facecolor("white")
+    return hm
 
 
 def _pretty_density(label: str) -> str:
@@ -558,7 +717,7 @@ def save_coverage_threshold_curves(
     melted["threshold_min"] = melted["_c"].str.replace("coverage_", "", regex=False).astype(int)
     melted = melted.drop(columns=["_c"])
 
-    fig, axes = plt.subplots(1, 2, figsize=(17, 6.5), sharey=True)
+    fig, axes = plt.subplots(1, 2, figsize=(13.5, 5.4), sharey=True)
     for i, env in enumerate(ENV_ORDER):
         sub = melted[melted["environment"] == env]
         if sub.empty:
@@ -575,9 +734,11 @@ def save_coverage_threshold_curves(
             hue_order=po,
             palette=[pal[p] for p in po],
             marker="o",
-            linewidth=2.2,
+            linewidth=1.6,
+            markersize=4,
             ax=axes[i],
         )
+        _apply_policy_linestyles(axes[i], po)
         axes[i].set_xticks(COVERAGE_THRESHOLDS_MIN)
         axes[i].set_xlabel("Time threshold T (minutes)")
         axes[i].set_ylabel("P(first arrival ≤ T)")
@@ -656,7 +817,7 @@ def save_story_slide_figures(
     if mode == "main":
         # S1: First-arrival ECDF + who arrives first.
         fig, axes = plt.subplots(
-            2, 2, figsize=(20, 11), gridspec_kw={"height_ratios": [1.0, 0.62]}
+            2, 2, figsize=(13.2, 8.6), gridspec_kw={"height_ratios": [1.0, 0.64]}
         )
         legend_items = {}
         for i, env in enumerate(ENV_ORDER):
@@ -668,15 +829,26 @@ def save_story_slide_figures(
             po = _policy_order(sub)
             pal = _policy_palette(po)
 
-            sns.ecdfplot(
-                data=sub, x="first_arrival_time", hue="policy", hue_order=po,
-                palette=[pal[p] for p in po], linewidth=2.1, ax=axes[0, i]
-            )
-            axes[0, i].axvline(_ems_mean(ems_benchmark, env), color="dimgray", linestyle=":", linewidth=2.0)
+            # Draw each policy explicitly so linestyle mapping is guaranteed.
+            for p in po:
+                psub = sub[sub["policy"] == p]
+                sns.ecdfplot(
+                    data=psub,
+                    x="first_arrival_time",
+                    color=pal[p],
+                    linestyle=POLICY_LINESTYLES.get(p, "-"),
+                    linewidth=2.2,
+                    ax=axes[0, i],
+                    label=_pretty_policy(p),
+                )
+            axes[0, i].axvline(_ems_mean(ems_benchmark, env), color="#4d4d4d", linestyle="--", linewidth=1.0)
+            axes[0, i].set_box_aspect(1)
             _partial_quantile_xlim(axes[0, i], sub["first_arrival_time"])
             axes[0, i].set_title(f"{env.capitalize()}: first-arrival CDF")
             axes[0, i].set_xlabel("First-arrival time (minutes)")
             axes[0, i].set_ylabel("Cumulative share of incidents")
+            axes[0, i].tick_params(labelsize=12)
+            style_axes(axes[0, i])
             for p in po:
                 legend_items[p] = pal[p]
             leg = axes[0, i].get_legend()
@@ -685,51 +857,75 @@ def save_story_slide_figures(
 
             race = sub.groupby("policy", as_index=False).agg(cfr=("cfr_beats_ems", "mean"))
             race = race.set_index("policy").reindex(po).reset_index()
+            race["policy_display"] = race["policy"].map(_pretty_policy)
             race["ems_first"] = 1.0 - race["cfr"]
             axes[1, i].barh(
-                race["policy"], race["cfr"], height=0.58, color="#4C72B0", label="Volunteer first"
+                race["policy_display"], race["cfr"], height=0.58, color="#4f6d8a", label="Volunteer first"
             )
             axes[1, i].barh(
-                race["policy"],
+                race["policy_display"],
                 race["ems_first"],
                 left=race["cfr"],
                 height=0.58,
-                color="#C0C0C0",
+                color="#d0d0d0",
                 label="EMS first",
             )
             axes[1, i].set_xlim(0, 1.0)
             axes[1, i].set_xlabel("Share of incidents")
             axes[1, i].set_title(f"{env.capitalize()}: who arrives first")
             axes[1, i].invert_yaxis()
+            axes[1, i].tick_params(labelsize=11)
+            style_axes(axes[1, i])
+        policy_handles = []
         if legend_items:
             ordered_policies = [p for p in POLICY_COLOR_ORDER if p in legend_items]
             ordered_policies += [p for p in legend_items.keys() if p not in ordered_policies]
             policy_handles = [
-                Line2D([0], [0], color=legend_items[p], lw=2.5, label=p) for p in ordered_policies
+                Line2D(
+                    [0],
+                    [0],
+                    color=legend_items[p],
+                    lw=2.5,
+                    linestyle=POLICY_LINESTYLES.get(p, "-"),
+                    label=_pretty_policy(p),
+                )
+                for p in ordered_policies
             ]
+        race_handles = [
+            Patch(facecolor="#4f6d8a", edgecolor="none", label="Volunteer first"),
+            Patch(facecolor="#d0d0d0", edgecolor="none", label="EMS first"),
+        ]
+        plt.tight_layout(rect=[0, 0.02, 0.80, 0.98])
+        # Align legend tops to the top edge of the intended subplot rows.
+        top_row_top = max(axes[0, 0].get_position().y1, axes[0, 1].get_position().y1)
+        bottom_row_top = max(axes[1, 0].get_position().y1, axes[1, 1].get_position().y1)
+        right_edge = max(axes[0, 1].get_position().x1, axes[1, 1].get_position().x1)
+        legend_x = min(0.98, right_edge + 0.015)
+        if policy_handles:
             fig.legend(
                 policy_handles,
                 [h.get_label() for h in policy_handles],
                 title="Policy",
                 loc="upper left",
-                bbox_to_anchor=(0.86, 0.98),
+                bbox_to_anchor=(legend_x, top_row_top),
+                bbox_transform=fig.transFigure,
                 ncol=1,
                 frameon=True,
+                fontsize=10,
+                title_fontsize=10.5,
             )
-        race_handles = [
-            Patch(facecolor="#4C72B0", edgecolor="none", label="Volunteer first"),
-            Patch(facecolor="#C0C0C0", edgecolor="none", label="EMS first"),
-        ]
         fig.legend(
             race_handles,
             [h.get_label() for h in race_handles],
             title="First-arriver split",
             loc="upper left",
-            bbox_to_anchor=(0.86, 0.45),
+            bbox_to_anchor=(legend_x, bottom_row_top),
+            bbox_transform=fig.transFigure,
             ncol=1,
             frameon=True,
+            fontsize=10,
+            title_fontsize=10.5,
         )
-        plt.tight_layout(rect=[0, 0.02, 0.84, 0.98])
         for _ax in fig.axes:
             _ax.set_title("")
         plt.savefig(out / "S1_core_speed_and_first_arriver_main.png", bbox_inches="tight")
@@ -737,7 +933,7 @@ def save_story_slide_figures(
         plt.close()
 
         # S2: Redundancy-only burden plot (baseline).
-        fig, axes = plt.subplots(1, 2, figsize=(18, 6), sharey=False)
+        fig, axes = plt.subplots(1, 2, figsize=(12, 5.2), sharey=False)
         for i, env in enumerate(ENV_ORDER):
             sub = baseline_df[baseline_df["environment"] == env].copy()
             if sub.empty:
@@ -757,7 +953,8 @@ def save_story_slide_figures(
             axes[i].set_title(f"{env.capitalize()}: mean redundant arrivals")
             axes[i].set_xlabel("Policy")
             axes[i].set_ylabel("Redundant arrivals per incident")
-            axes[i].tick_params(axis="x", rotation=35)
+            axes[i].set_xticklabels([_pretty_policy(t.get_text()) for t in axes[i].get_xticklabels()])
+            finalize_axis_labels(axes[i], rotate_x=35)
             _apply_zoom_limits(
                 axes[i],
                 sub.groupby("policy")["num_redundant"].mean(),
@@ -774,8 +971,8 @@ def save_story_slide_figures(
 
         # S3: Acceptance x density heatmaps for two selected policies.
         selected = ["GoodSAM", "Mobile Lifesaver"]
-        fig, axes = plt.subplots(2, 2, figsize=(18, 11), sharex=False, sharey=False)
-        cax = fig.add_axes([0.92, 0.18, 0.015, 0.64])
+        fig, axes = plt.subplots(2, 2, figsize=(10.2, 8.4), sharex=False, sharey=False)
+        cax = fig.add_axes([0.90, 0.18, 0.018, 0.64])
         for r, env in enumerate(ENV_ORDER):
             for c, pol in enumerate(selected):
                 ax = axes[r, c]
@@ -792,19 +989,24 @@ def save_story_slide_figures(
                 if piv.empty:
                     ax.set_visible(False)
                     continue
-                sns.heatmap(
-                    piv, annot=True, fmt=".2f", cmap="YlGnBu", vmin=0, vmax=1,
-                    linewidths=0.4, linecolor="white", cbar=(r == 0 and c == 1),
+                paper_heatmap(
+                    piv,
+                    ax=ax,
+                    annot=True,
+                    fmt=".2f",
+                    vmin=0,
+                    vmax=1,
+                    cbar=(r == 0 and c == 1),
                     cbar_ax=cax if (r == 0 and c == 1) else None,
                     cbar_kws={"label": "Mean P(volunteer before EMS)"},
-                    ax=ax,
                 )
-                ax.set_title(f"{env.capitalize()} | {pol}")
+                ax.set_box_aspect(0.95)
+                ax.set_title(f"{env.capitalize()} | {_pretty_policy(pol)}")
                 ax.set_xlabel("Acceptance tier")
                 ax.set_ylabel("Density level")
                 ax.set_xticklabels([_pretty_acceptance(t.get_text()) for t in ax.get_xticklabels()], rotation=25)
                 ax.set_yticklabels([_pretty_density(t.get_text()) for t in ax.get_yticklabels()], rotation=0)
-        plt.tight_layout(rect=[0, 0, 0.90, 0.98])
+        plt.tight_layout(rect=[0, 0, 0.88, 0.98])
         for _ax in fig.axes:
             _ax.set_title("")
         plt.savefig(out / "S3_acceptance_density_heatmaps_main.png", bbox_inches="tight")
@@ -814,8 +1016,8 @@ def save_story_slide_figures(
     if mode == "travel":
         # S4: Travel-speed x density sensitivity (heatmaps) for two selected policies.
         selected = ["GoodSAM", "Mobile Lifesaver"]
-        fig, axes = plt.subplots(2, 2, figsize=(18, 11), sharex=False, sharey=False)
-        cax = fig.add_axes([0.92, 0.18, 0.015, 0.64])
+        fig, axes = plt.subplots(2, 2, figsize=(10.2, 8.4), sharex=False, sharey=False)
+        cax = fig.add_axes([0.90, 0.18, 0.018, 0.64])
         for r, env in enumerate(ENV_ORDER):
             for c, pol in enumerate(selected):
                 ax = axes[r, c]
@@ -832,19 +1034,24 @@ def save_story_slide_figures(
                 if piv.empty:
                     ax.set_visible(False)
                     continue
-                sns.heatmap(
-                    piv, annot=True, fmt=".2f", cmap="YlGnBu", vmin=0, vmax=1,
-                    linewidths=0.4, linecolor="white", cbar=(r == 0 and c == 1),
+                paper_heatmap(
+                    piv,
+                    ax=ax,
+                    annot=True,
+                    fmt=".2f",
+                    vmin=0,
+                    vmax=1,
+                    cbar=(r == 0 and c == 1),
                     cbar_ax=cax if (r == 0 and c == 1) else None,
                     cbar_kws={"label": "Mean P(volunteer before EMS)"},
-                    ax=ax,
                 )
-                ax.set_title(f"{env.capitalize()} | {pol}")
+                ax.set_box_aspect(0.95)
+                ax.set_title(f"{env.capitalize()} | {_pretty_policy(pol)}")
                 ax.set_xlabel("Travel-friction tier")
                 ax.set_ylabel("Density level")
                 ax.set_xticklabels([_pretty_travel(t.get_text()) for t in ax.get_xticklabels()], rotation=25)
                 ax.set_yticklabels([_pretty_density(t.get_text()) for t in ax.get_yticklabels()], rotation=0)
-        plt.tight_layout(rect=[0, 0, 0.90, 0.98])
+        plt.tight_layout(rect=[0, 0, 0.88, 0.98])
         for _ax in fig.axes:
             _ax.set_title("")
         plt.savefig(out / "S4_travel_density_heatmaps_travel.png", bbox_inches="tight")
@@ -878,11 +1085,12 @@ def save_environment_dashboard(
             hue="policy",
             hue_order=policy_order,
             palette=policy_to_color,
-            linewidth=2.0,
+            linewidth=1.6,
             ax=ax,
         )
+        _apply_policy_linestyles(ax, policy_order)
         if show_ems_reference:
-            ax.axvline(ems_mean, color="dimgray", linestyle=":", linewidth=2.0, label=f"EMS mean ({ems_mean:.1f} min)")
+            ax.axvline(ems_mean, color="#4d4d4d", linestyle="--", linewidth=1.0, label=f"EMS mean ({ems_mean:.1f} min)")
         ax.set_title("Distribution of first-arrival times")
         ax.set_xlabel("First-arrival time (minutes)")
         ax.set_ylabel("Cumulative proportion of events")
@@ -905,7 +1113,7 @@ def save_environment_dashboard(
             ax=ax,
         )
         if show_ems_reference:
-            ax.axhline(ems_mean, color="dimgray", linestyle=":", linewidth=2.0)
+            ax.axhline(ems_mean, color="#4d4d4d", linestyle="--", linewidth=1.0)
         ax.set_title("Mean first-arrival time")
         ax.set_xlabel("Alerting policy")
         ax.set_ylabel("Mean first-arrival time (minutes)")
@@ -1015,13 +1223,13 @@ def save_tradeoff_and_burden_figure(
             hue_order=policy_order,
             palette=policy_to_color,
             size="coverage_5",
-            sizes=(180, 950),
+            sizes=(90, 340),
             alpha=0.9,
             edgecolor="black",
-            linewidth=0.3,
+            linewidth=0.25,
             ax=axes[i],
         )
-        axes[i].axhline(_ems_mean(ems_benchmark, env), color="dimgray", linestyle=":", linewidth=2.0)
+        axes[i].axhline(_ems_mean(ems_benchmark, env), color="#4d4d4d", linestyle="--", linewidth=1.0)
         axes[i].set_title(f"{env.capitalize()}: speed–redundancy trade-off")
         axes[i].set_xlabel("Mean redundant arrivals per event")
         axes[i].set_ylabel("Mean first-arrival time (minutes)")
@@ -1182,7 +1390,8 @@ def save_delta_vs_ems_only_figure(
         ax.set_title(f"{env.capitalize()}: Δ mean first-arrival vs EMS-only")
         ax.set_xlabel("Alerting policy")
         ax.set_ylabel("Minutes (negative = faster than EMS-only baseline)")
-        ax.tick_params(axis="x", rotation=35)
+        ax.set_xticklabels([_pretty_policy(t.get_text()) for t in ax.get_xticklabels()])
+        finalize_axis_labels(ax, rotate_x=35)
         if zoom:
             _apply_zoom_limits(
                 ax,
@@ -1225,9 +1434,10 @@ def save_cfr_beats_ecdf_baseline(
             hue="policy",
             hue_order=policy_order,
             palette=[policy_to_color[p] for p in policy_order],
-            linewidth=2.0,
+            linewidth=1.6,
             ax=ax,
         )
+        _apply_policy_linestyles(ax, policy_order)
         ax.axvline(0.5, color="gray", linestyle="--", linewidth=1.0, alpha=0.7)
         ax.set_title(f"{env.capitalize()}: volunteer-before-EMS rate (run-level means)")
         ax.set_xlabel("P(CFR before EMS) per replication")
@@ -1290,15 +1500,13 @@ def save_cfr_beats_heatmaps(
                     continue
 
                 plt.figure(figsize=(9, 5))
-                sns.heatmap(
+                paper_heatmap(
                     piv,
+                    ax=plt.gca(),
                     annot=True,
                     fmt=".2f",
-                    cmap="YlGnBu",
                     vmin=0,
                     vmax=1,
-                    linewidths=0.4,
-                    linecolor="white",
                     cbar_kws={"shrink": 0.85, "label": "Mean P(vol before EMS)"},
                 )
                 plt.title(f"{env.capitalize()} | {pol}\nMean volunteer-before-EMS rate")
@@ -1342,15 +1550,13 @@ def save_cfr_beats_heatmaps(
                 continue
 
             plt.figure(figsize=(12, 5))
-            sns.heatmap(
+            paper_heatmap(
                 piv,
+                ax=plt.gca(),
                 annot=True,
                 fmt=".2f",
-                cmap="YlGnBu",
                 vmin=0,
                 vmax=1,
-                linewidths=0.4,
-                linecolor="white",
                 cbar_kws={"shrink": 0.85, "label": "Mean P(vol before EMS)"},
             )
             plt.title(f"{env.capitalize()} | Mean volunteer-before-EMS rate (travel friction × policy)")
@@ -1669,7 +1875,7 @@ def save_cross_ems_comparison_figure(
                 hue="policy",
                 hue_order=policy_order,
                 style="EMS_calibration",
-                linewidth=2.0,
+                linewidth=1.6,
                 ax=ax,
             )
             if metric == "cfr_beats_ems":
@@ -1729,7 +1935,7 @@ def save_travel_sensitivity_figure(
             errorbar=("ci", 95),
             ax=ax,
         )
-        ax.axhline(_ems_mean(ems_benchmark, env), color="dimgray", linestyle=":", linewidth=2.0)
+        ax.axhline(_ems_mean(ems_benchmark, env), color="#4d4d4d", linestyle="--", linewidth=1.0)
         ax.set_title(f"{env.capitalize()}: first-arrival time vs travel friction")
         ax.set_xlabel("")
         ax.set_ylabel("Mean first-arrival time (minutes)")
@@ -1817,9 +2023,12 @@ def save_sensitivity_heatmaps(
                 )
 
                 fig, axes = plt.subplots(1, 2, figsize=(15, 5))
-                sns.heatmap(
-                    piv_arr, annot=True, fmt=".2f", cmap="viridis_r",
-                    linewidths=0.4, linecolor="white", cbar_kws={"shrink": 0.85}, ax=axes[0]
+                paper_heatmap(
+                    piv_arr,
+                    ax=axes[0],
+                    annot=True,
+                    fmt=".2f",
+                    cbar_kws={"shrink": 0.85},
                 )
                 axes[0].set_title(f"{env.capitalize()} | {pol}\nMean first-arrival time")
                 axes[0].set_xlabel("Acceptance setting")
@@ -1827,9 +2036,12 @@ def save_sensitivity_heatmaps(
                 axes[0].set_xticklabels([_pretty_acceptance(t.get_text()) for t in axes[0].get_xticklabels()], rotation=25)
                 axes[0].set_yticklabels([_pretty_density(t.get_text()) for t in axes[0].get_yticklabels()], rotation=0)
 
-                sns.heatmap(
-                    piv_red, annot=True, fmt=".2f", cmap="magma",
-                    linewidths=0.4, linecolor="white", cbar_kws={"shrink": 0.85}, ax=axes[1]
+                paper_heatmap(
+                    piv_red,
+                    ax=axes[1],
+                    annot=True,
+                    fmt=".2f",
+                    cbar_kws={"shrink": 0.85},
                 )
                 axes[1].set_title(f"{env.capitalize()} | {pol}\nMean redundant arrivals")
                 axes[1].set_xlabel("Acceptance setting")
@@ -1865,13 +2077,11 @@ def save_sensitivity_heatmaps(
                 piv_arr = piv_arr.reindex(index=[x for x in TRAVEL_ORDER if x in piv_arr.index])
 
                 plt.figure(figsize=(10, 5))
-                sns.heatmap(
+                paper_heatmap(
                     piv_arr,
+                    ax=plt.gca(),
                     annot=True,
                     fmt=".2f",
-                    cmap="viridis_r",
-                    linewidths=0.4,
-                    linecolor="white",
                     cbar_kws={"shrink": 0.85},
                 )
                 plt.title(f"{env.capitalize()} | Mean first-arrival time across travel friction")
@@ -1930,7 +2140,7 @@ def save_main_sensitivity_trend_lines(
         axes[0].set_xticks(range(len(DENSITY_ORDER)))
         axes[0].set_xticklabels([_pretty_density(x) for x in DENSITY_ORDER], rotation=25)
         axes[0].set_xlim(-0.1, len(DENSITY_ORDER) - 0.9)
-        axes[0].axhline(_ems_mean(ems_benchmark, env), color="dimgray", linestyle=":", linewidth=2.0)
+        axes[0].axhline(_ems_mean(ems_benchmark, env), color="#4d4d4d", linestyle="--", linewidth=1.0)
         _place_legend_outside(axes[0], title="Policy")
 
         sns.lineplot(
@@ -1994,7 +2204,7 @@ def save_main_sensitivity_trend_lines(
         axes[0].set_xticks(range(len(ACCEPTANCE_ORDER)))
         axes[0].set_xticklabels([_pretty_acceptance(x) for x in ACCEPTANCE_ORDER], rotation=25)
         axes[0].set_xlim(-0.1, len(ACCEPTANCE_ORDER) - 0.9)
-        axes[0].axhline(_ems_mean(ems_benchmark, env), color="dimgray", linestyle=":", linewidth=2.0)
+        axes[0].axhline(_ems_mean(ems_benchmark, env), color="#4d4d4d", linestyle="--", linewidth=1.0)
         _place_legend_outside(axes[0], title="Policy")
 
         sns.lineplot(
@@ -2079,7 +2289,7 @@ def save_travel_sensitivity_trend_lines(
         axes[0].set_xticks(range(len(TRAVEL_ORDER)))
         axes[0].set_xticklabels([_pretty_travel(x) for x in TRAVEL_ORDER], rotation=25)
         axes[0].set_xlim(-0.1, len(TRAVEL_ORDER) - 0.9)
-        axes[0].axhline(_ems_mean(ems_benchmark, env), color="dimgray", linestyle=":", linewidth=2.0)
+        axes[0].axhline(_ems_mean(ems_benchmark, env), color="#4d4d4d", linestyle="--", linewidth=1.0)
         _place_legend_outside(axes[0], title="Policy")
 
         sns.lineplot(
@@ -2457,37 +2667,7 @@ def main() -> None:
 
         _cfg.THESIS_RETROACTIVE_SUBTRACT_LEGACY_DECISION_DELAY = False
 
-    sns.set_theme(style="ticks", context="paper")
-    sns.set_palette(["#2f5d7c", "#6f8fa3", "#9fb3c1", "#4f6d7a", "#7a8fa3", "#a8b8c6", "#c7ccd1"])
-    plt.rcParams.update(
-        {
-            "text.usetex": False,
-            "font.family": "sans-serif",
-            "font.sans-serif": ["DejaVu Sans", "Helvetica", "Arial"],
-            "mathtext.fontset": "cm",
-            "figure.dpi": 180,
-            "savefig.dpi": 300,
-            "axes.grid": True,
-            "axes.facecolor": "#f1f1f1",
-            "figure.facecolor": "white",
-            "grid.alpha": 0.28,
-            "grid.linewidth": 0.7,
-            "grid.linestyle": "-",
-            "axes.spines.top": False,
-            "axes.spines.right": False,
-            "axes.linewidth": 0.9,
-            "lines.linewidth": 1.8,
-            "axes.labelsize": 12,
-            "axes.titlesize": 10,
-            "xtick.labelsize": 9.5,
-            "ytick.labelsize": 9.5,
-            "legend.frameon": True,
-            "legend.framealpha": 0.95,
-            "legend.fancybox": False,
-            "legend.fontsize": 8.5,
-            "legend.title_fontsize": 9,
-        }
-    )
+    set_paper_style()
 
     root = resolve_root()
     results = (root / args.results_root).resolve()
