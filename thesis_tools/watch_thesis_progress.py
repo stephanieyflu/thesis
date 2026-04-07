@@ -172,8 +172,8 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n"
-            "  python format_outputs/watch_thesis_progress.py\n"
-            "  python format_outputs/watch_thesis_progress.py --results-root results --once\n"
+            "  python thesis_tools/watch_thesis_progress.py\n"
+            "  python thesis_tools/watch_thesis_progress.py --results-root results --once\n"
         ),
     )
     parser.add_argument("--refresh", type=float, default=2.0, help="Seconds between refreshes.")

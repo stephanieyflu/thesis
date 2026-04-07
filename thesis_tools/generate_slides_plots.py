@@ -31,7 +31,7 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 from scipy import stats
 
-from utils import apply_thesis_retroactive_time_adjustment
+from src.cfr_sim.utils import apply_thesis_retroactive_time_adjustment
 
 
 GROUP_COLS = [
@@ -123,7 +123,7 @@ EMS_PRESET_CROSS_LEGEND = {
 
 
 def _thesis_time_adj_cache_suffix() -> str:
-    from config import THESIS_RETROACTIVE_SUBTRACT_LEGACY_DECISION_DELAY
+    from src.cfr_sim.config import THESIS_RETROACTIVE_SUBTRACT_LEGACY_DECISION_DELAY
 
     return "_thesis_time_adj" if THESIS_RETROACTIVE_SUBTRACT_LEGACY_DECISION_DELAY else ""
 
@@ -330,7 +330,7 @@ def build_run_level_from_sources(
     if source_files:
         sample_cols = pd.read_csv(source_files[0], nrows=0).columns.tolist()
         if _is_run_level_schema(sample_cols):
-            from config import THESIS_RETROACTIVE_SUBTRACT_LEGACY_DECISION_DELAY
+            from src.cfr_sim.config import THESIS_RETROACTIVE_SUBTRACT_LEGACY_DECISION_DELAY
 
             if THESIS_RETROACTIVE_SUBTRACT_LEGACY_DECISION_DELAY:
                 raise ValueError(
@@ -729,7 +729,6 @@ def save_story_slide_figures(
             ncol=1,
             frameon=True,
         )
-        plt.suptitle("S1 | Core performance: speed and first-arriver decomposition (baseline)", y=1.01)
         plt.tight_layout(rect=[0, 0.02, 0.84, 0.98])
         for _ax in fig.axes:
             _ax.set_title("")
@@ -766,7 +765,6 @@ def save_story_slide_figures(
                 min_pad=0.02,
                 lower_zero=True,
             )
-        plt.suptitle("S2 | Operational burden: redundant arrivals by policy (baseline)", y=1.02)
         plt.tight_layout()
         for _ax in fig.axes:
             _ax.set_title("")
@@ -806,7 +804,6 @@ def save_story_slide_figures(
                 ax.set_ylabel("Density level")
                 ax.set_xticklabels([_pretty_acceptance(t.get_text()) for t in ax.get_xticklabels()], rotation=25)
                 ax.set_yticklabels([_pretty_density(t.get_text()) for t in ax.get_yticklabels()], rotation=0)
-        plt.suptitle("S3 | Main-grid sensitivity: acceptance and density effects", y=1.01)
         plt.tight_layout(rect=[0, 0, 0.90, 0.98])
         for _ax in fig.axes:
             _ax.set_title("")
@@ -847,7 +844,6 @@ def save_story_slide_figures(
                 ax.set_ylabel("Density level")
                 ax.set_xticklabels([_pretty_travel(t.get_text()) for t in ax.get_xticklabels()], rotation=25)
                 ax.set_yticklabels([_pretty_density(t.get_text()) for t in ax.get_yticklabels()], rotation=0)
-        plt.suptitle("S4 | Travel and density sensitivity (acceptance fixed at ACC V3)", y=1.01)
         plt.tight_layout(rect=[0, 0, 0.90, 0.98])
         for _ax in fig.axes:
             _ax.set_title("")
@@ -1196,11 +1192,6 @@ def save_delta_vs_ems_only_figure(
                 min_pad=0.02,
             )
 
-    plt.suptitle(
-        f"{mode.capitalize()} | Incremental first-arrival vs alerting no volunteers",
-        y=1.02,
-        fontsize=16,
-    )
     plt.tight_layout(rect=[0, 0, 0.88, 1])
     for _ax in fig.axes:
         _ax.set_title("")
@@ -2222,7 +2213,7 @@ def _render_slides_bundle(
     print("OUT:", out)
     print("BASELINE FILTERS:", BASELINE_FILTERS_BY_MODE[mode])
     print("EMS reference (plot lines):", ems_benchmark)
-    from config import THESIS_RETROACTIVE_SUBTRACT_LEGACY_DECISION_DELAY
+    from src.cfr_sim.config import THESIS_RETROACTIVE_SUBTRACT_LEGACY_DECISION_DELAY
 
     if THESIS_RETROACTIVE_SUBTRACT_LEGACY_DECISION_DELAY:
         print(
@@ -2332,12 +2323,12 @@ def main() -> None:
         description="Generate thesis plots from CFR simulation outputs.",
         epilog=(
             "Examples:\n"
-            "  Default grid (~10/15 min EMS):  python format_outputs/generate_slides_plots.py\n"
-            "  Slower EMS batch folder:         python format_outputs/generate_slides_plots.py "
+            "  Default grid (~10/15 min EMS):  python thesis_tools/generate_slides_plots.py\n"
+            "  Slower EMS batch folder:         python thesis_tools/generate_slides_plots.py "
             "--thesis-subdir thesis_archetype_grid_ems15_20 --ems-preset 15_20\n"
-            "  Compare two EMS batches:         python format_outputs/generate_slides_plots.py "
+            "  Compare two EMS batches:         python thesis_tools/generate_slides_plots.py "
             "--compare-thesis-subdir thesis_archetype_grid_ems15_20 --ems-preset 10_15\n"
-            "  Full trees + compare in one run: python format_outputs/generate_slides_plots.py "
+            "  Full trees + compare in one run: python thesis_tools/generate_slides_plots.py "
             "--thesis-subdir thesis_archetype_grid_ems15_20 --ems-preset 15_20 "
             "--compare-thesis-subdir thesis_archetype_grid --dual-full-bundles --no-run-cache"
         ),
@@ -2462,34 +2453,36 @@ def main() -> None:
         parser.error("--dual-full-bundles requires --compare-thesis-subdir")
 
     if args.skip_legacy_delay_adjustment:
-        import config as _cfg
+        import src.cfr_sim.config as _cfg
 
         _cfg.THESIS_RETROACTIVE_SUBTRACT_LEGACY_DECISION_DELAY = False
 
-    sns.set_theme(style="whitegrid", context="paper")
-    sns.set_palette(sns.color_palette("colorblind", desat=0.75))
+    sns.set_theme(style="ticks", context="paper")
+    sns.set_palette(["#2f5d7c", "#6f8fa3", "#9fb3c1", "#4f6d7a", "#7a8fa3", "#a8b8c6", "#c7ccd1"])
     plt.rcParams.update(
         {
             "text.usetex": False,
             "font.family": "sans-serif",
             "font.sans-serif": ["DejaVu Sans", "Helvetica", "Arial"],
             "mathtext.fontset": "cm",
-            "figure.dpi": 170,
+            "figure.dpi": 180,
             "savefig.dpi": 300,
             "axes.grid": True,
-            "grid.alpha": 0.20,
-            "grid.linewidth": 0.6,
+            "axes.facecolor": "#f1f1f1",
+            "figure.facecolor": "white",
+            "grid.alpha": 0.28,
+            "grid.linewidth": 0.7,
             "grid.linestyle": "-",
             "axes.spines.top": False,
             "axes.spines.right": False,
-            "axes.linewidth": 0.8,
-            "lines.linewidth": 1.6,
-            "axes.labelsize": 11,
+            "axes.linewidth": 0.9,
+            "lines.linewidth": 1.8,
+            "axes.labelsize": 12,
             "axes.titlesize": 10,
-            "xtick.labelsize": 10,
-            "ytick.labelsize": 10,
+            "xtick.labelsize": 9.5,
+            "ytick.labelsize": 9.5,
             "legend.frameon": True,
-            "legend.framealpha": 0.92,
+            "legend.framealpha": 0.95,
             "legend.fancybox": False,
             "legend.fontsize": 8.5,
             "legend.title_fontsize": 9,

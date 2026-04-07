@@ -8,7 +8,6 @@ cells (env, density, EMS preset, acceptance tier, responder count).
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import os
 import sys
 from dataclasses import dataclass
@@ -17,15 +16,8 @@ from typing import Any
 
 
 def _load_experiment_grid_constants() -> Any:
-    # `format_outputs/experiment_grid.py` is not an importable package module,
-    # so we load it by file path.
-    repo_root = Path(__file__).resolve().parents[1]
-    grid_path = repo_root / "format_outputs" / "experiment_grid.py"
-    spec = importlib.util.spec_from_file_location("thesis_experiment_grid", grid_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Unable to import experiment grid module at {grid_path}")
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    from src.cfr_sim import experiment_grid as mod
+
     return mod
 
 
@@ -85,7 +77,7 @@ def main() -> None:
     parser.add_argument("--interval-ms", type=int, default=100)
     args = parser.parse_args()
 
-    # Ensure repo root is importable (when this script runs from `format_outputs/`).
+    # Ensure repo root is importable.
     repo_root = Path(__file__).resolve().parents[1]
     if str(repo_root) not in sys.path:
         sys.path.insert(0, str(repo_root))
@@ -114,8 +106,8 @@ def main() -> None:
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    from simulation import run_single_event_trace
-    from analysis import animate_event_trace
+    from src.cfr_sim.simulation import run_single_event_trace
+    from src.cfr_sim.analysis import animate_event_trace
 
     for policy_name in args.policy:
         trace = run_single_event_trace(

@@ -20,8 +20,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from config import SIM_RUNS, TOTAL_EVENTS_PER_REPLICATION  # noqa: E402
-from experiment_grid import (  # noqa: E402
+from src.cfr_sim.config import SIM_RUNS, TOTAL_EVENTS_PER_REPLICATION  # noqa: E402
+from src.cfr_sim.experiment_grid import (  # noqa: E402
     THESIS_ACCEPTANCE_SCENARIOS,
     THESIS_DENSITIES_BY_ENV,
     THESIS_DENSITY_LABELS,
@@ -30,7 +30,7 @@ from experiment_grid import (  # noqa: E402
     THESIS_TRAVEL_FRICTION,
     thesis_main_grid_kwargs,
 )
-from main import run_experiment_grid  # noqa: E402
+from src.cfr_sim.main import run_experiment_grid  # noqa: E402
 
 
 def _out_path(mode: str, env: str, results_folder: Path, density: str | None) -> Path:
