@@ -1,5 +1,5 @@
 import numpy as np
-from config import RESPONSE_DELAY_MEAN, RESPONSE_DELAY_STD, REST_MEAN, REST_STD
+from config import REST_MEAN, REST_STD
 
 class Responder:
     def __init__(

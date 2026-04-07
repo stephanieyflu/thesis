@@ -71,6 +71,13 @@ def momentum_policy(responders, current_time, predicted_ambulance_time=6):
         radius=radius
     )
 
+def heartrunner_policy(responders, current_time):
+    """
+    HeartRunner-style: CPR-capable responders within 1.3 km, closest first, max 30 alerted.
+    """
+    cpr_group = [r for r in responders if r.has_cpr_training]
+    return nearest_responders(cpr_group, current_time, k=30, radius=1.3)
+
 def goodsam_policy(responders, current_time):
     cpr_group = [r for r in responders if r.has_cpr_training]
     stage1 = nearest_responders(
@@ -116,17 +123,17 @@ CFR_POLICIES = {
     # alert the nearest 10 responders to perform cpr and some other 10 responders to retrieve aeds (cpr training)
     "Mobile Lifesaver": mobile_lifesaver_policy,
 
-    # alert all responders within 400m (no requirement)
-    "PulsePoint": pulsepoint_policy,
-
-    # alert all responders within 400m (no requirement)
-    "myResponder": pulsepoint_policy,
+    # alert all responders within 400m (no requirement); shared by PulsePoint and myResponder deployments
+    "PulsePoint_and_myResponder": pulsepoint_policy,
 
     # alert all responders within 750m, cancel other alerts when 5 positive responses are received (cpr training)
     "Hartslagnu": hartslagnu_policy,
 
     # alert all responders within a radius calculated from the predicted ambulance response time (cpr training)
     "Momentum": momentum_policy,
+
+    # Denmark HeartRunner-style: nearest CPR-capable within 1.3 km, max 30 alerted
+    "HeartRunner": heartrunner_policy,
 
     # alert the nearest 3 responders within 300m, then dynamically alert more responders over time if no response is received (profession id/cpr training)
     "GoodSAM": goodsam_policy,

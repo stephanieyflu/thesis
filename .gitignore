@@ -1,5 +1,13 @@
 .venv*
 __pycache__
 _bin
+.vscode
+logs
+latex
+report
+results
 *.csv
 *.png
+*.gif
+*.pdf
+assumptions.yaml
